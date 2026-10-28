@@ -1,0 +1,42 @@
+# Private reference material (PPTs, PDFs) — never commit
+NotGit/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+build/
+dist/
+*.spec
+
+# Node
+node_modules/
+dashboard/dist/
+
+# Secrets and local config
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+agent/config.local.yaml
+
+# Runtime data
+*.db
+*.sqlite
+*.log
+quarantine/
+
+# Editors / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+
+# Agent dev data (buffer, state, logs)
+.agent-data/

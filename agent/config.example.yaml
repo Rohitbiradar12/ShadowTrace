@@ -1,0 +1,51 @@
+# Copy to config.local.yaml (git-ignored) and adjust.
+server_url: http://127.0.0.1:8000
+verify_tls: true            # or a path to the lab server's CA certificate
+data_dir: ./.agent-data     # omit to use C:\ProgramData\ShadowTrace (or the Linux/macOS default)
+enrollment_token: null      # or pass --token to the enroll command
+heartbeat_interval_seconds: 10
+max_buffered_events: 100000
+log_level: INFO
+
+upload:
+  batch_size: 500
+  interval_seconds: 2
+
+collectors:
+  process:
+    enabled: true
+    poll_interval_seconds: 1.0
+    hash_executables: true
+    max_hash_size_mb: 200
+    emit_exits: true
+
+  file:
+    enabled: true
+    watch_user_folders: true       # Desktop, Documents, Downloads (follows OneDrive redirection)
+    paths: []                      # extra folders to watch
+    sensitive_paths: []            # folders where any change is flagged data.sensitive = true
+    watch_removable: true          # also watch USB drives while plugged in (spot bulk copying)
+
+  network:
+    enabled: true
+    poll_interval_seconds: 5.0
+    include_private: true          # also report LAN connections, not just internet
+    report_listening: true
+
+  browser:
+    enabled: true
+    poll_interval_seconds: 30.0
+    include_titles: true
+
+  # --- Windows-only collectors (ignored on Linux/macOS) ---
+  eventlog:
+    enabled: true                  # needs the agent to run as administrator
+    poll_interval_seconds: 5.0
+
+  usb:
+    enabled: true
+    poll_interval_seconds: 3.0
+
+  wifi:
+    enabled: true
+    poll_interval_seconds: 10.0
