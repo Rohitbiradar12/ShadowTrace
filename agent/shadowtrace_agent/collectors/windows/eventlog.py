@@ -186,54 +186,52 @@ class EventLogCollector(Collector):
         import pywintypes
         import win32evtlog
 
-        try:
-            handle = win32evtlog.OpenEventLog(None, self.options.channel)
-        except pywintypes.error as exc:
-            self._handle_open_error(exc)
-            return
-
-        try:
-            if not self._last_record:
-                # First run on this machine: start from the newest record, skip history.
-                self._last_record = self._newest_record(win32evtlog, handle)
-                self.save_state({"last_record": self._last_record})
-            log.info(
-                "Event log monitor started on %s (record %d)",
-                self.options.channel,
-                self._last_record,
-            )
-            while not stop.is_set():
+        initialized = bool(self.load_state())
+        while not stop.is_set():
+            try:
+                handle = win32evtlog.OpenEventLog(None, self.options.channel)
+            except pywintypes.error as exc:
+                self._handle_open_error(exc)
+                return
+            try:
+                if not initialized:
+                    self._last_record = self._newest_record(win32evtlog, handle)
+                    self.save_state({"last_record": self._last_record})
+                    initialized = True
                 self._read_new(win32evtlog, pywintypes, handle)
-                stop.wait(self.options.poll_interval_seconds)
-        finally:
-            win32evtlog.CloseEventLog(handle)
+            finally:
+                # A cleared log invalidates old handles. Each poll starts with a fresh one.
+                win32evtlog.CloseEventLog(handle)
+            stop.wait(self.options.poll_interval_seconds)
 
     def _read_new(self, win32evtlog, pywintypes, handle) -> None:
-        flags = win32evtlog.EVENTLOG_BACKWARDS_READ | win32evtlog.EVENTLOG_SEQUENTIAL_READ
         newest = self._newest_record(win32evtlog, handle)
         if newest < self._last_record:
             # Log was cleared or wrapped; resync without replaying the whole log.
             log.info("Event log reset detected (newest %d < last %d)", newest, self._last_record)
             self._last_record = 0
+        if newest <= self._last_record:
+            return
+        oldest = win32evtlog.GetOldestEventLogRecord(handle)
+        offset = max(oldest, self._last_record + 1)
+        flags = win32evtlog.EVENTLOG_FORWARDS_READ | win32evtlog.EVENTLOG_SEEK_READ
         collected: list[tuple[int, Any]] = []
         try:
-            while True:
-                records = win32evtlog.ReadEventLog(handle, flags, 0)
+            for _ in range(32):  # bound work per poll even on a very busy Security log
+                records = win32evtlog.ReadEventLog(handle, flags, offset)
+                flags = win32evtlog.EVENTLOG_FORWARDS_READ | win32evtlog.EVENTLOG_SEQUENTIAL_READ
                 if not records:
                     break
-                done = False
                 for record in records:
-                    if record.RecordNumber <= self._last_record:
-                        done = True
-                        break
-                    collected.append((record.RecordNumber, record))
-                if done:
+                    if record.RecordNumber > self._last_record:
+                        collected.append((record.RecordNumber, record))
+                if records[-1].RecordNumber >= newest:
                     break
         except pywintypes.error as exc:
             log.warning("Reading event log failed: %s", exc)
             return
 
-        # Collected newest-first; emit oldest-first so the forensic timeline stays ordered.
+        # Emit oldest-first so the forensic timeline stays ordered.
         for _, record in sorted(collected, key=lambda item: item[0]):
             self._emit_record(record)
         if collected:
