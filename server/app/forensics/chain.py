@@ -66,18 +66,28 @@ def verify_chain(
     prev_hash = GENESIS_HASH
     checked = 0
     for expected_index, event in enumerate(events):
-        index = event["chain_index"]
+        index = event.get("chain_index")
+        if not isinstance(index, int) or isinstance(index, bool):
+            return ChainVerification(False, checked, expected_index, "invalid chain index")
         if index != expected_index:
             return ChainVerification(False, checked, expected_index, "event missing from chain")
-        if event["prev_hash"] != prev_hash:
+        if event.get("prev_hash") != prev_hash:
             return ChainVerification(False, checked, index, "prev_hash does not match")
-        if compute_hash(prev_hash, event) != event["hash"]:
+        try:
+            expected_hash = compute_hash(prev_hash, event)
+        except (TypeError, ValueError):
+            return ChainVerification(False, checked, index, "event content cannot be canonicalized")
+        if expected_hash != event.get("hash"):
             return ChainVerification(False, checked, index, "event content was modified")
         prev_hash = event["hash"]
         checked += 1
 
     if checked < expected_length:
         return ChainVerification(False, checked, checked, "events missing from end of chain")
+    if checked > expected_length:
+        return ChainVerification(
+            False, checked, expected_length, "events exceed recorded chain length"
+        )
     if prev_hash != expected_head:
         return ChainVerification(False, checked, None, "chain head does not match device record")
     return ChainVerification(True, checked)
