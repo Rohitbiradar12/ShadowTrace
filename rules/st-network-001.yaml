@@ -1,0 +1,10 @@
+id: ST-NETWORK-001
+title: Connection to an IP in the local indicator list
+severity: critical
+category: network
+mitre: ["T1071"]
+match:
+  action: "connection_opened"
+  data.remote_ip: {"in_list":"bad_ips"}
+exclude:
+  - {"data.remote_ip":{"in_list":"trusted_ips"}}

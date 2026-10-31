@@ -1,0 +1,8 @@
+id: ST-WIFI-001
+title: Connected to an open Wi-Fi network
+severity: high
+category: wifi
+mitre: []
+match:
+  action: "network_connected"
+  data.is_open: true

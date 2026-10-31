@@ -1,0 +1,10 @@
+id: ST-NETWORK-002
+title: Connection on a port that needs review
+severity: medium
+category: network
+mitre: ["T1571"]
+match:
+  action: "connection_opened"
+  data.remote_port: {"in":[4444,1337,6667]}
+exclude:
+  - {"data.remote_ip":{"in_list":"trusted_ips"}}

@@ -1,0 +1,8 @@
+id: ST-BROWSER-003
+title: Browser flagged a dangerous download
+severity: high
+category: browser
+mitre: ["T1204.002"]
+match:
+  action: "file_downloaded"
+  data.danger_type: {"gt":0}

@@ -1,0 +1,8 @@
+id: ST-BROWSER-002
+title: Downloaded from a URL in the local indicator list
+severity: high
+category: browser
+mitre: ["T1105"]
+match:
+  action: "file_downloaded"
+  data.url: {"in_list":"bad_urls"}

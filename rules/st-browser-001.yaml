@@ -1,0 +1,10 @@
+id: ST-BROWSER-001
+title: Visited a domain in the local indicator list
+severity: high
+category: browser
+mitre: ["T1189"]
+match:
+  action: "url_visited"
+  data.domain: {"in_list":"bad_domains"}
+exclude:
+  - {"data.domain":{"in_list":"trusted_domains"}}

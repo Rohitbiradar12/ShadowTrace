@@ -1,0 +1,9 @@
+id: ST-WIFI-002
+title: Connected to Wi-Fi outside the trusted list
+severity: medium
+category: wifi
+mitre: []
+match:
+  action: "network_connected"
+  data.is_open: false
+  data.ssid: {"not_in_list":"trusted_wifi_ssids"}
