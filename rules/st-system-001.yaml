@@ -1,0 +1,7 @@
+id: ST-SYSTEM-001
+title: Security audit log cleared
+severity: critical
+category: system
+mitre: ["T1070.001"]
+match:
+  action: "audit_log_cleared"

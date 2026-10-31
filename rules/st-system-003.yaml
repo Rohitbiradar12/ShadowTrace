@@ -1,0 +1,8 @@
+id: ST-SYSTEM-003
+title: Member added to an administrator group
+severity: high
+category: system
+mitre: ["T1098"]
+match:
+  action: "member_added_to_group"
+  data.is_admin_group: true

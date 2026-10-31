@@ -1,0 +1,7 @@
+id: ST-AGENT-001
+title: Monitoring collector failed
+severity: high
+category: agent
+mitre: ["T1562.001"]
+match:
+  action: {"in":["collector_error","eventlog_access_denied","defender_unavailable"]}

@@ -1,0 +1,7 @@
+id: ST-SYSTEM-002
+title: Local account created
+severity: medium
+category: system
+mitre: ["T1136.001"]
+match:
+  action: "account_created"
