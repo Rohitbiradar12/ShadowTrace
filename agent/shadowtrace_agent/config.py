@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, Field
@@ -12,6 +12,13 @@ class UploadConfig(BaseModel):
     interval_seconds: float = Field(2.0, gt=0)
 
 
+class ResponseConfig(BaseModel):
+    enabled: bool = False
+    allowed_actions: list[Literal["lock_workstation", "kill_process"]] = Field(
+        default_factory=lambda: ["lock_workstation", "kill_process"]
+    )
+
+
 class AgentConfig(BaseModel):
     server_url: str = "http://127.0.0.1:8000"
     # True, False, or a path to a CA bundle (for a self-signed lab server certificate).
@@ -22,6 +29,7 @@ class AgentConfig(BaseModel):
     max_buffered_events: int = Field(100_000, ge=1000)
     log_level: str = "INFO"
     upload: UploadConfig = Field(default_factory=UploadConfig)
+    responses: ResponseConfig = Field(default_factory=ResponseConfig)
     # Per-collector options keyed by collector name; each collector validates its own section.
     collectors: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
