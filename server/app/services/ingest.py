@@ -1,15 +1,14 @@
-import asyncio
-from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
+from app.core.locks import device_lock
 from app.forensics.chain import GENESIS_HASH, compute_hash, truncate_to_ms
 from app.models import Device, Event
 from app.models.event import EventIn
 
-# Chain appends must be serialized per device. This lock covers a single server process;
-# the unique (device_id, chain_index) index rejects races if several workers are ever run.
-_device_locks: defaultdict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
+
+class IntegrityError(Exception):
+    """An append would conceal missing or modified forensic evidence."""
 
 
 @dataclass
@@ -18,16 +17,73 @@ class IngestResult:
     duplicates: int
 
 
-async def _chain_head(device_id: str) -> tuple[int, str]:
-    """Next chain index and previous hash, read from the events themselves."""
-    last = await Event.find(Event.device_id == device_id).sort(-Event.chain_index).first_or_none()
-    if last is None:
-        return 0, GENESIS_HASH
-    return last.chain_index + 1, last.hash
+async def _update_head(device: Device, rows: list[dict], length: int, head: str) -> None:
+    missing, last_seq = device.missing_events, device.last_seq
+    for row in rows:
+        seq = row["seq"]
+        missing += max(0, seq - last_seq - 1)
+        last_seq = max(last_seq, seq)
+    await device.set(
+        {
+            Device.chain_length: length,
+            Device.chain_head: head,
+            Device.last_seq: last_seq,
+            Device.missing_events: missing,
+        }
+    )
+
+
+async def _chain_head(device: Device) -> tuple[int, str]:
+    """Preserve the recorded anchor; recover only a verified, uncommitted suffix.
+
+    MongoDB standalone does not support multi-document transactions. A crash between
+    inserting events and updating the device is recoverable; deleting the anchored tail
+    is not. Never replace that anchor with the last surviving event.
+    """
+    collection = Event.get_pymongo_collection()
+    index, head = device.chain_length, device.chain_head
+    if index:
+        anchor = await collection.find_one(
+            {
+                "device_id": device.device_id,
+                "chain_index": index - 1,
+            }
+        )
+        if (
+            anchor is None
+            or anchor["hash"] != head
+            or compute_hash(anchor["prev_hash"], anchor) != head
+        ):
+            raise IntegrityError("Stored chain tail does not match the device anchor")
+    elif head != GENESIS_HASH:
+        raise IntegrityError("Invalid genesis anchor")
+    cursor = collection.find(
+        {
+            "device_id": device.device_id,
+            "chain_index": {"$gte": index},
+        }
+    ).sort("chain_index", 1)
+    recovered = []
+    async for row in cursor:
+        if (
+            row["chain_index"] != index
+            or row["prev_hash"] != head
+            or compute_hash(head, row) != row["hash"]
+        ):
+            raise IntegrityError("Uncommitted chain suffix is incomplete or modified")
+        recovered.append(row)
+        index, head = index + 1, row["hash"]
+    if recovered:
+        await _update_head(device, recovered, index, head)
+    return index, head
 
 
 async def ingest_batch(device_id: str, incoming: list[EventIn]) -> IngestResult:
-    async with _device_locks[device_id]:
+    async with device_lock(device_id):
+        device = await Device.find_one(Device.device_id == device_id)
+        if device is None:
+            raise ValueError("Unknown device")
+        next_index, prev_hash = await _chain_head(device)
         # Agents retry batches after network errors, so the same event may arrive twice.
         ids = [str(e.event_id) for e in incoming]
         cursor = Event.get_pymongo_collection().find({"event_id": {"$in": ids}}, {"event_id": 1})
@@ -43,7 +99,6 @@ async def ingest_batch(device_id: str, incoming: list[EventIn]) -> IngestResult:
         if not fresh:
             return IngestResult(accepted=0, duplicates=len(incoming))
 
-        next_index, prev_hash = await _chain_head(device_id)
         received_at = truncate_to_ms(datetime.now(UTC))
         docs: list[Event] = []
         for event in fresh:
@@ -66,21 +121,6 @@ async def ingest_batch(device_id: str, incoming: list[EventIn]) -> IngestResult:
 
         await Event.insert_many(docs)
 
-        device = await Device.find_one(Device.device_id == device_id)
-        if device is not None:
-            missing = 0
-            last_seq = device.last_seq
-            for event in fresh:
-                if event.seq > last_seq + 1:
-                    missing += event.seq - last_seq - 1
-                last_seq = max(last_seq, event.seq)
-            await device.set(
-                {
-                    Device.chain_length: next_index,
-                    Device.chain_head: prev_hash,
-                    Device.last_seq: last_seq,
-                    Device.missing_events: device.missing_events + missing,
-                }
-            )
+        await _update_head(device, [d.model_dump() for d in docs], next_index, prev_hash)
 
         return IngestResult(accepted=len(docs), duplicates=len(incoming) - len(docs))
