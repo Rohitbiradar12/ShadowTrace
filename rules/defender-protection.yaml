@@ -1,0 +1,7 @@
+id: ST-DEFENDER-002
+title: Microsoft Defender protection disabled
+severity: critical
+mitre: [T1562.001]
+category: system
+match:
+  action: defender_protection_disabled

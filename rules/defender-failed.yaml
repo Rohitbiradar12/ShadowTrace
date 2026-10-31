@@ -1,0 +1,6 @@
+id: ST-DEFENDER-003
+title: Microsoft Defender threat action failed
+severity: high
+category: system
+match:
+  action: defender_action_failed

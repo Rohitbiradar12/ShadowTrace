@@ -1,0 +1,6 @@
+id: ST-DEFENDER-001
+title: Microsoft Defender detected a threat
+severity: high
+category: system
+match:
+  action: defender_threat_detected
