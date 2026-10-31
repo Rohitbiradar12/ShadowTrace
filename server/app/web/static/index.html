@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#090d13"><title>ShadowTrace · Endpoint security</title>
+<link rel="icon" href="/assets/mark.svg" type="image/svg+xml">
+<link rel="preload" href="/assets/fonts/geist-var.woff2" as="font" type="font/woff2" crossorigin>
+<script src="/assets/theme.js"></script>
+<link rel="stylesheet" href="/assets/app.css">
+<script src="/assets/app.js" type="module"></script></head>
+<body><a class="skip-link" href="#main-content">Skip to content</a>
+<p id="boot-status" class="boot" role="status">Opening your workspace…</p>
+<section id="login-view" class="login-layout" hidden aria-label="Sign in">
+  <div class="login-intro"><a class="brand" href="/"><img src="/assets/mark.svg" alt="" width="38" height="42"><span>ShadowTrace<small>ENDPOINT SECURITY</small></span></a>
+    <div class="intro-copy"><p class="eyebrow">Visibility. Evidence. Response.</p><h1>Know what happened.<br><span>Act with confidence.</span></h1><p>One workspace to monitor endpoints, investigate alerts, and respond with a clear record of every action.</p>
+      <ul class="intro-list"><li><span>01</span> Follow activity across your endpoints</li><li><span>02</span> Investigate with verifiable evidence</li><li><span>03</span> Respond with controlled actions</li></ul></div>
+    <p class="intro-footer">Your infrastructure. Your evidence.</p>
+  </div>
+  <div class="login-panel">
+    <button class="icon-button theme-toggle" type="button" data-action="toggle-theme" aria-label="Switch color theme"><svg class="icon icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg><svg class="icon icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg></button>
+    <div class="login-card"><p class="eyebrow">Welcome back</p><h2>Sign in to your workspace</h2><p class="muted">Use your ShadowTrace operator account.</p>
+    <form id="login-form"><label for="login-username">Username</label><input id="login-username" name="username" autocomplete="username" required maxlength="64" autofocus>
+      <label for="login-password">Password</label><input id="login-password" name="password" type="password" autocomplete="current-password" required maxlength="128">
+      <p id="login-error" class="form-error" role="alert"></p><button class="button primary wide" type="submit">Sign in <span aria-hidden="true">→</span></button></form>
+    <p class="login-notice">Authorized access only. Endpoint activity may contain sensitive information.</p>
+    <details class="setup-help"><summary>Setting up your first account?</summary><p>In the server terminal, run:</p><code>python -m app.cli create-user admin --role admin</code><p>You’ll be prompted to choose a password.</p></details>
+  </div></div>
+</section>
+<div id="workspace" class="workspace" hidden>
+  <aside class="sidebar" aria-label="Workspace navigation"><a class="brand" href="#/overview"><img src="/assets/mark.svg" alt="" width="34" height="38"><span>ShadowTrace<small>ENDPOINT SECURITY</small></span></a>
+    <div class="workspace-label"><span class="status-dot"></span> Security workspace</div><p class="nav-label">Monitor &amp; investigate</p>
+    <nav id="main-nav"><a href="#/overview" data-nav="overview">Overview</a><a href="#/alerts" data-nav="alerts">Alerts<span class="nav-count" id="nav-alert-count" hidden></span></a><a href="#/devices" data-nav="devices">Devices</a><a href="#/events" data-nav="events">Events explorer</a><a href="#/timeline" data-nav="timeline">Timeline</a><a href="#/commands" data-nav="commands">Response history</a><a href="#/reports" data-nav="reports">Reports</a>
+    <p class="nav-label">Configuration</p><a href="#/rules" data-nav="rules">Detection rules</a><a href="#/settings" data-nav="settings" data-admin>Settings</a></nav>
+    <div class="sidebar-footer"><div class="avatar" id="user-avatar">ST</div><div><strong id="current-user"></strong><small id="current-role"></small></div><button class="icon-button" data-action="logout" title="Sign out" aria-label="Sign out"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4m7 14 5-5-5-5m5 5H9"/></svg></button></div>
+  </aside>
+  <div class="main-column"><header class="topbar"><button id="menu-toggle" class="icon-button mobile-menu" aria-label="Toggle navigation" aria-expanded="false"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><span class="breadcrumb">Workspace <span>/</span> <span id="topbar-title">Overview</span></span><button class="search-trigger" type="button" data-action="palette" aria-label="Search and jump to pages" aria-keyshortcuts="Control+K Meta+K"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span class="search-placeholder">Search or jump to…</span><span class="search-keys" aria-hidden="true"><kbd class="kbd-mod">Ctrl</kbd><kbd>K</kbd></span></button><div class="topbar-right"><span class="refresh-status" id="refresh-status">Connected</span><button class="icon-button theme-toggle" type="button" data-action="toggle-theme" aria-label="Switch color theme"><svg class="icon icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg><svg class="icon icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg></button><button class="button small" data-action="refresh"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36L21 8m0-5v5h-5"/></svg>Refresh</button></div></header>
+    <main id="main-content" tabindex="-1" aria-busy="false"></main><footer class="workspace-footer"><span>ShadowTrace · Evidence-led endpoint security</span><span>Times shown in UTC</span></footer>
+  </div>
+</div>
+<dialog id="action-dialog" aria-labelledby="dialog-title"><form id="dialog-form"><div class="dialog-heading"><h2 id="dialog-title"></h2><button class="icon-button" type="button" data-action="close-dialog" aria-label="Close dialog"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div><div id="dialog-body"></div><p id="dialog-error" class="form-error" role="alert"></p><div class="dialog-actions"><button class="button" type="button" data-action="close-dialog">Cancel</button><button id="dialog-submit" class="button primary" type="submit">Confirm</button></div></form></dialog>
+<dialog id="palette" class="palette" aria-label="Command palette"><div class="palette-search"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="palette-input" type="text" role="combobox" aria-expanded="true" aria-controls="palette-list" aria-autocomplete="list" aria-label="Search ShadowTrace" placeholder="Search alerts and endpoints, or jump to a page…" autocomplete="off" spellcheck="false" maxlength="100"><kbd>Esc</kbd></div><div id="palette-list" class="palette-list" role="listbox" aria-label="Results"></div><div class="palette-footer"><span><kbd>↑</kbd><kbd>↓</kbd> navigate</span><span><kbd>↵</kbd> open</span><span class="palette-tip">Press <kbd>/</kbd> anywhere to search</span></div></dialog>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body></html>
