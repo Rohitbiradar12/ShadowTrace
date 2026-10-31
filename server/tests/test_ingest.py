@@ -136,3 +136,38 @@ async def test_devices_have_independent_chains(api):
 
     assert (await verify_device_chain(await get_device(a))).checked == 1
     assert (await verify_device_chain(await get_device(b))).checked == 2
+
+
+async def test_deleted_tail_cannot_be_hidden_by_another_upload(api):
+    creds = await enroll(api)
+    await upload(api, creds, [make_event(1), make_event(2)])
+    await Event.get_pymongo_collection().delete_one(
+        {
+            "device_id": creds["device_id"],
+            "chain_index": 1,
+        }
+    )
+    response = await upload(api, creds, [make_event(3)])
+    assert response.status_code == 409
+    assert not (await verify_device_chain(await get_device(creds))).ok
+
+
+async def test_retry_recovers_insert_before_device_update_crash(api, monkeypatch):
+    from app.services import ingest
+
+    creds = await enroll(api)
+    batch = [make_event(1), make_event(2)]
+    original = ingest._update_head
+
+    async def crash(*args):
+        raise RuntimeError("simulated crash after events committed")
+
+    monkeypatch.setattr(ingest, "_update_head", crash)
+    import pytest
+
+    with pytest.raises(RuntimeError, match="simulated crash"):
+        await upload(api, creds, batch)
+    monkeypatch.setattr(ingest, "_update_head", original)
+    response = await upload(api, creds, batch)
+    assert response.json() == {"accepted": 0, "duplicates": 2}
+    assert (await verify_device_chain(await get_device(creds))).ok

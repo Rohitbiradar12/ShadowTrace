@@ -1,32 +1,45 @@
 """Tests run against a real MongoDB (local install or the CI service container)."""
 
 import os
+import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
 
-from app.core.config import Settings
+from app.core.config import Settings, get_settings
 from app.core.db import init_db
 from app.core.security import ENROLLMENT_TOKEN_PREFIX, generate_token, hash_token
+from app.detection.engine import get_engine
 from app.main import app
 from app.models import EnrollmentToken
 
-TEST_SETTINGS = Settings(
-    mongo_url=os.environ.get("ST_MONGO_URL", "mongodb://localhost:27017"),
-    mongo_db="shadowtrace_test",
-)
-
 
 @pytest.fixture(autouse=True)
-async def db() -> AsyncIterator[None]:
-    client = await init_db(TEST_SETTINGS)
-    await client.drop_database(TEST_SETTINGS.mongo_db)
-    # Dropping removes indexes too, so initialize again to recreate them.
-    await init_db(TEST_SETTINGS)
-    yield
-    await client.close()
+async def db(monkeypatch) -> AsyncIterator[None]:
+    settings = Settings(
+        mongo_url=os.environ.get(
+            "ST_TEST_MONGO_URL", "mongodb://127.0.0.1:27017/?serverSelectionTimeoutMS=3000"
+        ),
+        mongo_db="shadowtrace_test_" + uuid.uuid4().hex,
+    )
+    monkeypatch.setenv("ST_MONGO_URL", settings.mongo_url)
+    monkeypatch.setenv("ST_MONGO_DB", settings.mongo_db)
+    monkeypatch.setenv("ST_NOTIFICATIONS_ENABLED", "false")
+    monkeypatch.setenv("ST_AUTO_RESPONSE_ENABLED", "false")
+    monkeypatch.setenv("ST_TELEGRAM_CONTROLS_ENABLED", "false")
+    monkeypatch.setenv("ST_SESSION_COOKIE_SECURE", "false")
+    get_settings.cache_clear()
+    get_engine.cache_clear()
+    client = await init_db(settings)
+    try:
+        yield
+    finally:
+        await client.drop_database(settings.mongo_db)
+        await client.close()
+        get_settings.cache_clear()
+        get_engine.cache_clear()
 
 
 @pytest.fixture
