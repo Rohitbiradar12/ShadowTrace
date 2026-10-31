@@ -1,4 +1,70 @@
-# Windows installation and responses
+# Operations guide
+
+Installation, server administration, notifications, responses and testing. For first-time
+setup, start with the [README](../README.md).
+
+## Server administration
+
+Run server commands from `server/`, using its virtual environment, so `server/.env` is loaded.
+The default database is `shadowtrace` on local MongoDB; set `ST_MONGO_URL` and `ST_MONGO_DB`
+before creating the first account if you need something else. Validate rules with
+`python -m app.cli validate-rules`. Health is at `/api/v1/health`; API documentation is at `/docs`.
+
+Run **one Uvicorn worker**: per-device ingestion and detection are serialized inside that
+process, so multi-worker deployment is not supported yet. Restart the server after changing
+environment variables, rule files or indicator lists.
+
+To deploy beyond localhost, terminate HTTPS at a trusted reverse proxy, set
+`ST_SESSION_COOKIE_SECURE=true`, and set `ST_PUBLIC_URL` to the dashboard's external origin.
+The proxy must preserve the request's public host and scheme for same-origin checks.
+
+Passwords use Argon2id. Sessions use opaque, revocable HttpOnly/SameSite cookies; changes
+require a session CSRF token and same-origin validation. Role changes, disabling an account,
+password changes and resets revoke that account's sessions. Reset a forgotten password with
+`python -m app.cli reset-password USERNAME`.
+
+Useful CLI commands:
+
+```powershell
+.\.venv\Scripts\python.exe -m app.cli create-enrollment-token --hours 1 --max-uses 1
+.\.venv\Scripts\python.exe -m app.cli list-devices
+.\.venv\Scripts\python.exe -m app.cli list-alerts
+.\.venv\Scripts\python.exe -m app.cli show-alert ALERT_ID
+.\.venv\Scripts\python.exe -m app.cli list-notifications
+.\.venv\Scripts\python.exe -m app.cli verify-chain DEVICE_ID
+.\.venv\Scripts\python.exe -m app.cli scan-pending
+```
+
+`scan-pending` (and the background recovery worker) processes events left behind by
+interrupted requests.
+
+## Agent notes
+
+The sample configuration keeps the agent's data directory inside `agent/`; collector cursors,
+logs and the offline buffer live there. Browser history starts at a first-run baseline and then
+catches up across restarts. The process and network collectors poll, so very short-lived
+activity can be missed. Security-log monitoring requires an elevated agent.
+
+## Notifications
+
+Delivery is disabled by default. To enable it, set `ST_NOTIFICATIONS_ENABLED=true` and fill in
+the Telegram bot token and destination chat ID and/or the SMTP values from `.env.example`.
+High and critical alerts use both channels by default; a rule can set `response.notify`
+explicitly. Unconfigured channels are recorded as `unconfigured` without network attempts.
+
+Delivery runs independently of ingestion. Failed sends retry with backoff and then become
+`failed`. Each device/channel has a rate budget, and pending alerts are combined into digests.
+After fixing settings and restarting, retry a disabled, unconfigured or failed delivery from
+the alert's dashboard page (administrators) or with
+`python -m app.cli retry-notification NOTIFICATION_ID`. Sent deliveries are never reset. A lost
+external acknowledgement can cause a repeated notification.
+
+### Telegram controls
+
+Telegram buttons additionally require `ST_TELEGRAM_CONTROLS_ENABLED=true` and a JSON list of
+numeric operator IDs in `ST_TELEGRAM_ALLOWED_USER_IDS`. Both the chat and the operator must
+match. Lock and kill require confirmation within 60 seconds; callbacks expire and are
+deduplicated. Use a dedicated bot with no webhook and no other polling client.
 
 ## Fresh installation
 
@@ -108,13 +174,43 @@ MongoDB. The agent also queues a `command_result` forensic event when it saves a
 These acknowledgements are endpoint reports, not independent proof that a compromised agent
 carried out an action. Command history is not part of the forensic event hash chain.
 
-Manual creation is limited to the local CLI and the operator's OS/database access. There is
-no unauthenticated HTTP command-creation route. Dashboard roles and Telegram allowlisted
-callbacks are the next integration steps.
+Commands can be created from the local CLI, from the dashboard by analysts and
+administrators, and through allowlisted [Telegram controls](#telegram-controls). There is no
+unauthenticated HTTP command-creation route.
 
 Automatic actions additionally require `ST_AUTO_RESPONSE_ENABLED=true` and a rule with
 `response.auto_action`. No starter rule has one. Old/future-dated events cannot trigger them,
 and each deduplicated alert/action queues at most one command. See [rule configuration](rules.md).
+
+## Testing
+
+From `server/` or `agent/`, using that package's virtual environment:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\ruff.exe check .
+```
+
+Server tests use a unique disposable database per test and remove only that database.
+`ST_TEST_MONGO_URL` selects the test MongoDB instance; the production `ST_MONGO_URL` is never
+used for tests. Telegram/SMTP tests use mocks. The isolated browser walkthrough
+(`scripts/browser_smoke.py`) is described in the [demo playbook](demo.md). CI runs the Windows
+agent suite, the server suite against a MongoDB service, rule validation, JavaScript and
+PowerShell syntax checks, and the browser walkthrough.
+
+## Current limits
+
+- The forensic chain detects edits and deletions relative to the device's saved anchor, but
+  has no external signed anchor: an attacker controlling both collections can rewrite both.
+  A missing or modified tail returns HTTP 409 and leaves the agent's events buffered.
+  Automatic event deletion is not enabled; any retention policy must preserve chain anchors.
+- CSV export includes at most 5,000 events. Incident reports include linked evidence, up to
+  250 timeline events, response history and chain verification, and say when they are
+  truncated. Print the report page to save a PDF, or download its JSON.
+- Real locking/termination and live Telegram/SMTP delivery need a controlled lab test with
+  your configuration; automated checks mock them.
+- Future work: DPAPI key storage, quarantine, file-read auditing, executable signing, feed
+  synchronization, browser rule editing, packaging, multi-worker scale and Linux/macOS agents.
 
 ## Validation status
 

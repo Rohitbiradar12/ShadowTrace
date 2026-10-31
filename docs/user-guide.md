@@ -1,6 +1,6 @@
 # Dashboard user guide
 
-Follow the [README setup](../README.md#server-and-dashboard-setup-powershell), create the
+Follow the [README setup](../README.md#1-start-the-server), create the
 first administrator with the CLI, then open http://127.0.0.1:8000/. Use your chosen account;
 there are no default credentials. Times displayed by the dashboard and date filters use UTC.
 

@@ -2,7 +2,7 @@
 
 The submission walkthrough uses synthetic event metadata. It does not need account lockouts,
 log clearing, malware, live process termination or changes to the machine's Wi-Fi/protection.
-Complete [server setup](../README.md#server-and-dashboard-setup-powershell) with MongoDB running.
+Complete [server setup](../README.md#1-start-the-server) with MongoDB running.
 
 ## Isolated browser walkthrough
 
