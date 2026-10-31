@@ -1,0 +1,10 @@
+id: ST-FILE-001
+title: Known indicator matched a created or modified file
+severity: critical
+category: file
+mitre: ["T1204.002"]
+match:
+  action: {"in":["file_created","file_modified","file_renamed"]}
+  data.sha256: {"in_list":"bad_hashes"}
+exclude:
+  - {"data.sha256":{"in_list":"trusted_process_hashes"}}

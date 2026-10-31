@@ -1,0 +1,13 @@
+id: ST-FILE-003
+title: Bulk file creation on removable storage
+severity: high
+category: file
+mitre: ["T1052.001"]
+match:
+  action: "file_created"
+  data.removable: true
+  data.is_dir: false
+threshold:
+  count: 100
+  within: 60s
+  group_by: ["device_id","data.watch_root"]

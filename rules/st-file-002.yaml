@@ -1,0 +1,12 @@
+id: ST-FILE-002
+title: Mass file deletion
+severity: high
+category: file
+mitre: ["T1485"]
+match:
+  action: "file_deleted"
+  data.is_dir: false
+threshold:
+  count: 50
+  within: 60s
+  group_by: ["device_id"]

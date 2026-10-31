@@ -1,0 +1,9 @@
+id: ST-USB-001
+title: USB device outside the allowlist
+severity: medium
+category: usb
+mitre: ["T1091"]
+match:
+  action: "device_connected"
+exclude:
+  - data.serial: {"in_list":"allowed_usb_serials"}

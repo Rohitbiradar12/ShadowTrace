@@ -1,0 +1,9 @@
+id: ST-FILE-004
+title: Change in a sensitive folder
+severity: medium
+category: file
+mitre: ["T1565.001"]
+match:
+  action: {"in":["file_created","file_modified","file_renamed","file_deleted"]}
+  data.sensitive: true
+  data.is_dir: false
