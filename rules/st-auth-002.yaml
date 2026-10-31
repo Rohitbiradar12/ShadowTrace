@@ -1,0 +1,7 @@
+id: ST-AUTH-002
+title: Account locked after failed logins
+severity: high
+category: auth
+mitre: ["T1110"]
+match:
+  action: "account_locked"

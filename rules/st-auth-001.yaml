@@ -1,0 +1,11 @@
+id: ST-AUTH-001
+title: Possible brute-force login
+severity: high
+category: auth
+mitre: ["T1110"]
+match:
+  action: "logon_failed"
+threshold:
+  count: 5
+  within: 120s
+  group_by: ["device_id","data.target_user"]
