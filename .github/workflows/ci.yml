@@ -1,0 +1,72 @@
+name: Project checks
+on: [push, pull_request]
+
+jobs:
+  agent:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e ".[dev]"
+      - run: ruff check .
+      - run: python -m pytest -q
+      - name: Check Windows installer syntax
+        shell: pwsh
+        run: |
+          foreach ($scriptPath in @('../scripts/install-agent.ps1', '../scripts/uninstall-agent.ps1')) {
+            $parseErrors = $null
+            $parseTokens = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $scriptPath).Path, [ref]$parseTokens, [ref]$parseErrors)
+            if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
+          }
+
+  server:
+    runs-on: ubuntu-latest
+    services:
+      mongo:
+        image: mongo:8.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ping:1}).ok'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e ".[dev]"
+      - run: ruff check . ../scripts
+      - run: python -m app.cli validate-rules
+      - run: python -m pytest -q
+      - name: Check dashboard JavaScript
+        run: |
+          for file in app/web/static/*.js; do
+            node --check "$file"
+          done
+      - name: Install browser for smoke test
+        run: python -m playwright install --with-deps chromium
+      - name: Exercise dashboard and printable report
+        working-directory: .
+        env:
+          ST_TEST_MONGO_URL: mongodb://127.0.0.1:27017
+        run: python scripts/browser_smoke.py
+      - name: Save browser artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shadowtrace-browser
+          path: artifacts/browser/
+          if-no-files-found: ignore
+          retention-days: 7
