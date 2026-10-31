@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "shadowtrace-agent"
 version = "0.1.0"
@@ -8,6 +12,8 @@ dependencies = [
     "httpx>=0.27",
     "pyyaml>=6.0",
     "pydantic>=2.9",
+    "watchdog>=6.0",
+    "pywin32>=308; sys_platform == 'win32'",
 ]
 
 [project.optional-dependencies]
@@ -15,6 +21,9 @@ dev = ["pytest>=8", "ruff>=0.6"]
 
 [project.scripts]
 shadowtrace-agent = "shadowtrace_agent.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["shadowtrace_agent*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -7,6 +7,11 @@ heartbeat_interval_seconds: 10
 max_buffered_events: 100000
 log_level: INFO
 
+# Enable on endpoints where lock/kill responses are authorized.
+responses:
+  enabled: false
+  allowed_actions: [lock_workstation, kill_process]
+
 upload:
   batch_size: 500
   interval_seconds: 2
@@ -40,6 +45,10 @@ collectors:
   # --- Windows-only collectors (ignored on Linux/macOS) ---
   eventlog:
     enabled: true                  # needs the agent to run as administrator
+    poll_interval_seconds: 5.0
+
+  defender:
+    enabled: true
     poll_interval_seconds: 5.0
 
   usb:
