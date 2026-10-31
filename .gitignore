@@ -40,3 +40,6 @@ Thumbs.db
 
 # Agent dev data (buffer, state, logs)
 .agent-data/
+
+# Generated browser screenshots, PDFs, logs and downloads
+artifacts/
