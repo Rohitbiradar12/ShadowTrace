@@ -1,0 +1,8 @@
+id: ST-PROCESS-005
+title: Executable launched from removable storage
+severity: high
+category: process
+mitre: ["T1091"]
+match:
+  action: "process_started"
+  data.exe_on_removable: true

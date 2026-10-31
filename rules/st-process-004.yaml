@@ -1,0 +1,9 @@
+id: ST-PROCESS-004
+title: Certutil used to download content
+severity: high
+category: process
+mitre: ["T1105"]
+match:
+  action: "process_started"
+  data.name: {"iregex":"^certutil\\.exe$"}
+  data.command_line: {"icontains_any":["-urlcache","-verifyctl"]}

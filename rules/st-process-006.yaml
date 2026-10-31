@@ -1,0 +1,10 @@
+id: ST-PROCESS-006
+title: Known indicator matched an executable hash
+severity: critical
+category: process
+mitre: ["T1204.002"]
+match:
+  action: "process_started"
+  data.sha256: {"in_list":"bad_hashes"}
+exclude:
+  - {"data.sha256":{"in_list":"trusted_process_hashes"}}

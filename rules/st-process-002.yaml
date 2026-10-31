@@ -1,0 +1,9 @@
+id: ST-PROCESS-002
+title: Office application started a command interpreter
+severity: high
+category: process
+mitre: ["T1204.002"]
+match:
+  action: "process_started"
+  data.parent.name: {"iregex":"^(winword|excel|powerpnt|outlook)\\.exe$"}
+  data.name: {"iregex":"^(powershell|pwsh|cmd|wscript|cscript)\\.exe$"}

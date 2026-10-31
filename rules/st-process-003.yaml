@@ -1,0 +1,10 @@
+id: ST-PROCESS-003
+title: Executable launched from Downloads or Temp
+severity: medium
+category: process
+mitre: ["T1204.002"]
+match:
+  action: "process_started"
+  data.exe: {"iregex":"[\\\\/](downloads|temp)[\\\\/]"}
+exclude:
+  - {"data.sha256":{"in_list":"trusted_process_hashes"}}

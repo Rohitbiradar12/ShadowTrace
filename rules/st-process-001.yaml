@@ -1,0 +1,9 @@
+id: ST-PROCESS-001
+title: Encoded PowerShell command
+severity: high
+category: process
+mitre: ["T1059.001"]
+match:
+  action: "process_started"
+  data.name: {"iregex":"^(powershell|pwsh)(\\.exe)?$"}
+  data.command_line: {"iregex":"\\s-(enc|encodedcommand)\\b"}
