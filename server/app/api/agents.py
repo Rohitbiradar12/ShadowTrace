@@ -13,7 +13,9 @@ from app.core.security import (
     hash_token,
 )
 from app.models import Device, EnrollmentToken
+from app.models.command import CommandResult
 from app.models.device import OsName
+from app.services.commands import accept_results, deliver_commands
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
@@ -35,13 +37,14 @@ class HeartbeatIn(BaseModel):
     agent_version: str = Field(max_length=32)
     uptime_seconds: float = 0
     stats: dict[str, Any] = Field(default_factory=dict)
+    command_results: list[CommandResult] = Field(default_factory=list, max_length=100)
 
 
 class HeartbeatOut(BaseModel):
     server_time: datetime
     heartbeat_interval_seconds: int
-    # Response actions (lock, kill, quarantine) are delivered here from phase 5.
     commands: list[dict[str, Any]] = Field(default_factory=list)
+    acknowledged_results: list[str] = Field(default_factory=list)
 
 
 @router.post("/enroll", response_model=EnrollOut, status_code=status.HTTP_201_CREATED)
@@ -86,5 +89,8 @@ async def heartbeat(body: HeartbeatIn, device: CurrentDevice, request: Request) 
         }
     )
     return HeartbeatOut(
-        server_time=now, heartbeat_interval_seconds=get_settings().heartbeat_interval_seconds
+        server_time=now,
+        heartbeat_interval_seconds=get_settings().heartbeat_interval_seconds,
+        acknowledged_results=await accept_results(device.device_id, body.command_results),
+        commands=await deliver_commands(device.device_id),
     )
