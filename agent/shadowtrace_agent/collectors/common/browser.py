@@ -48,6 +48,24 @@ class Profile:
     kind: str
 
 
+@dataclass(frozen=True)
+class ReadResult:
+    cursors: dict[str, int]
+    has_more: bool = False
+
+
+def profile_signature(path: Path) -> tuple:
+    """SQLite may change only its WAL while the browser remains open."""
+    signature = []
+    for source in (path, path.with_name(path.name + "-wal")):
+        try:
+            stat = source.stat()
+            signature.append((stat.st_mtime_ns, stat.st_size))
+        except FileNotFoundError:
+            signature.append(None)
+    return tuple(signature)
+
+
 def default_roots(os_name: OsName | None = None) -> list[BrowserRoot]:
     home = Path.home()
     match os_name or current_os():
@@ -147,7 +165,8 @@ class BrowserCollector(Collector):
     ) -> None:
         super().__init__(options, emit, context)
         self._roots = roots if roots is not None else default_roots()
-        self._mtimes: dict[str, float] = {}
+        self._signatures: dict[str, tuple] = {}
+        self._backlog: set[str] = set()
         self._user = current_user()
 
     def run(self, stop: threading.Event) -> None:
@@ -162,24 +181,28 @@ class BrowserCollector(Collector):
         for profile in discover_profiles(self._roots):
             key = str(profile.db_path)
             try:
-                mtime = profile.db_path.stat().st_mtime
+                signature = profile_signature(profile.db_path)
             except OSError:
                 continue
-            if self._mtimes.get(key) == mtime and key in state:
+            if self._signatures.get(key) == signature and key in state and key not in self._backlog:
                 continue
             try:
-                cursors = self._read_profile(profile, state.get(key))
+                result = self._read_profile(profile, state.get(key))
             except (OSError, sqlite3.Error) as exc:
                 log.debug("Skipping %s %s this round: %s", profile.browser, profile.name, exc)
                 continue
-            self._mtimes[key] = mtime
-            if cursors != state.get(key):
-                state[key] = cursors
+            self._signatures[key] = signature
+            if result.has_more:
+                self._backlog.add(key)
+            else:
+                self._backlog.discard(key)
+            if result.cursors != state.get(key):
+                state[key] = result.cursors
                 changed = True
         if changed:
             self.save_state(state)
 
-    def _read_profile(self, profile: Profile, cursors: dict[str, int] | None) -> dict[str, int]:
+    def _read_profile(self, profile: Profile, cursors: dict[str, int] | None) -> ReadResult:
         with tempfile.TemporaryDirectory(prefix="shadowtrace-") as tmp:
             copy = Path(tmp) / profile.db_path.name
             shutil.copy2(profile.db_path, copy)
@@ -196,12 +219,14 @@ class BrowserCollector(Collector):
 
     def _read_chromium(
         self, conn: sqlite3.Connection, profile: Profile, cursors: dict[str, int] | None
-    ) -> dict[str, int]:
+    ) -> ReadResult:
         if cursors is None:  # first sight: start from now
-            return {
-                "visit": conn.execute("SELECT COALESCE(MAX(id), 0) FROM visits").fetchone()[0],
-                "download": _max_id(conn, "downloads"),
-            }
+            return ReadResult(
+                {
+                    "visit": conn.execute("SELECT COALESCE(MAX(id), 0) FROM visits").fetchone()[0],
+                    "download": _max_id(conn, "downloads"),
+                }
+            )
         last_visit = cursors.get("visit", 0)
         rows = conn.execute(
             "SELECT visits.id, urls.url, urls.title, visits.visit_time FROM visits "
@@ -213,11 +238,14 @@ class BrowserCollector(Collector):
             last_visit = visit_id
 
         last_download = cursors.get("download", 0)
-        for row in _chromium_downloads(conn, last_download, self.options.max_rows_per_poll):
+        downloads = _chromium_downloads(conn, last_download, self.options.max_rows_per_poll)
+        blocked = False
+        for row in downloads:
             download_id, target_path, tab_url, start_time, total_bytes, mime, danger, state, url = (
                 row
             )
             if state == DOWNLOAD_IN_PROGRESS:
+                blocked = True
                 break  # report it once finished; later rows wait so none are skipped
             if state == DOWNLOAD_COMPLETE:
                 self._emit_download(
@@ -225,13 +253,17 @@ class BrowserCollector(Collector):
                     webkit_to_datetime(start_time),
                 )  # fmt: skip
             last_download = download_id
-        return {"visit": last_visit, "download": last_download}
+        return ReadResult(
+            {"visit": last_visit, "download": last_download},
+            len(rows) == self.options.max_rows_per_poll
+            or (not blocked and len(downloads) == self.options.max_rows_per_poll),
+        )
 
     def _read_firefox(
         self, conn: sqlite3.Connection, profile: Profile, cursors: dict[str, int] | None
-    ) -> dict[str, int]:
+    ) -> ReadResult:
         if cursors is None:
-            return {"visit": _max_id(conn, "moz_historyvisits")}
+            return ReadResult({"visit": _max_id(conn, "moz_historyvisits")})
         last_visit = cursors.get("visit", 0)
         rows = conn.execute(
             "SELECT v.id, p.url, p.title, v.visit_date FROM moz_historyvisits v "
@@ -241,7 +273,7 @@ class BrowserCollector(Collector):
         for visit_id, url, title, visit_date in rows:
             self._emit_visit(profile, url, title, unix_us_to_datetime(visit_date))
             last_visit = visit_id
-        return {"visit": last_visit}
+        return ReadResult({"visit": last_visit}, len(rows) == self.options.max_rows_per_poll)
 
     def _emit_visit(
         self, profile: Profile, url: str, title: str | None, ts: datetime | None

@@ -139,3 +139,43 @@ def test_describe_url():
     assert describe_url("https://EXAMPLE.com/a")["domain"] == "example.com"
     assert describe_url("http://198.51.100.7:8080/x")["host_is_ip"] is True
     assert describe_url("edge://settings") is None
+
+
+def test_backlog_drains_without_another_browser_write(tmp_path):
+    db, conn = make_history(tmp_path)
+    capture = Capture()
+    collector = make_collector(tmp_path, capture)
+    collector.options.max_rows_per_poll = 10
+    try:
+        collector.poll()
+        for n in range(2, 27):
+            conn.execute("INSERT INTO urls VALUES (?, ?, ?)", (n, "https://demo.example", "Demo"))
+            conn.execute("INSERT INTO visits VALUES (?, ?, ?)", (n, n, webkit(VISIT_TIME)))
+        conn.commit()
+        touch(db)
+        for _ in range(3):
+            collector.poll()
+        assert len(capture.events) == 25
+        collector.poll()
+        assert len(capture.events) == 25
+    finally:
+        conn.close()
+
+
+def test_wal_only_changes_are_reported(tmp_path):
+    db, conn = make_history(tmp_path)
+    capture = Capture()
+    collector = make_collector(tmp_path, capture)
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        collector.poll()
+        before = db.stat().st_mtime_ns
+        conn.execute("INSERT INTO urls VALUES (2, 'https://wal.example/', 'WAL')")
+        conn.execute("INSERT INTO visits VALUES (2, 2, ?)", (webkit(VISIT_TIME),))
+        conn.commit()
+        assert db.stat().st_mtime_ns == before
+        collector.poll()
+        assert len(capture.events) == 1
+    finally:
+        conn.close()
