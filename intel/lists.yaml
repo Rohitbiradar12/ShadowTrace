@@ -1,0 +1,29 @@
+# Offline demo fixtures, NOT a maintained real-world threat feed.
+# Replace/add indicators from sources you trust. Empty allowlists suppress nothing.
+bad_domains:
+  kind: domain
+  values: [demo-bad.example]
+bad_urls:
+  kind: url
+  values: [https://demo-bad.example/payload]
+bad_ips:
+  kind: ip
+  values: [203.0.113.66]
+bad_hashes:
+  kind: sha256
+  values: ["ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"]
+allowed_usb_serials:
+  kind: text
+  values: []
+trusted_wifi_ssids:
+  kind: text
+  values: []
+trusted_process_hashes:
+  kind: sha256
+  values: []
+trusted_domains:
+  kind: domain
+  values: []
+trusted_ips:
+  kind: ip
+  values: []
