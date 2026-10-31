@@ -1,0 +1,5 @@
+# Normalize line endings: keep code LF in the repo, let Git handle the working copy.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ico binary
