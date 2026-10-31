@@ -60,17 +60,29 @@ class Heartbeat:
         stats: Callable[[], dict[str, Any]],
         uptime: Callable[[], float],
         on_commands: Callable[[list[dict[str, Any]]], None],
+        results: Callable[[], list[dict]] | None = None,
+        acknowledge: Callable[[list[str]], None] | None = None,
     ) -> None:
         self._client = client
         self._interval = interval_seconds
         self._stats = stats
         self._uptime = uptime
         self._on_commands = on_commands
+        self._results = results or (lambda: [])
+        self._acknowledge = acknowledge or (lambda ids: None)
 
     def beat_once(self) -> None:
+        pending = self._results()
         response = self._client.heartbeat(
-            {"agent_version": __version__, "uptime_seconds": self._uptime(), "stats": self._stats()}
+            {
+                "agent_version": __version__,
+                "uptime_seconds": self._uptime(),
+                "stats": self._stats(),
+                "command_results": pending,
+            }
         )
+        sent_ids = {result["command_id"] for result in pending}
+        self._acknowledge([i for i in response.get("acknowledged_results", []) if i in sent_ids])
         if commands := response.get("commands"):
             self._on_commands(commands)
 
@@ -80,4 +92,6 @@ class Heartbeat:
                 self.beat_once()
             except ServerError as exc:
                 log.warning("Heartbeat failed: %s", exc)
+            except Exception:
+                log.exception("Heartbeat or response handling failed; will retry")
             stop.wait(self._interval)

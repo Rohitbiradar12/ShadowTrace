@@ -2,6 +2,7 @@ import logging
 import os
 import platform
 import socket
+import sys
 import threading
 import time
 from datetime import datetime
@@ -13,9 +14,10 @@ import psutil
 
 from shadowtrace_agent import __version__
 from shadowtrace_agent.collectors import build_collectors
-from shadowtrace_agent.collectors.base import Collector
+from shadowtrace_agent.collectors.base import Collector, CollectorContext
 from shadowtrace_agent.config import AgentConfig
 from shadowtrace_agent.osinfo import current_os
+from shadowtrace_agent.response import Responder
 from shadowtrace_agent.schema import Category, new_event
 from shadowtrace_agent.state import EnrollmentState, load_state, save_state
 from shadowtrace_agent.transport.buffer import EventBuffer
@@ -33,8 +35,9 @@ def setup_logging(data_dir: Path, level: str) -> None:
         RotatingFileHandler(
             data_dir / "logs" / "agent.log", maxBytes=5_000_000, backupCount=3, encoding="utf-8"
         ),
-        logging.StreamHandler(),
     ]
+    if sys.stderr is not None:  # Scheduled installs use pythonw.exe without a console.
+        handlers.append(logging.StreamHandler())
     logging.basicConfig(
         level=level.upper(),
         format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
@@ -94,7 +97,16 @@ class Agent:
         log.info("ShadowTrace agent %s starting as %s", __version__, state.device_id)
 
         self.buffer = EventBuffer(self.data_dir / "buffer.db", self.config.max_buffered_events)
-        collectors = build_collectors(self.config.collectors, self.emit)
+        collectors = build_collectors(
+            self.config.collectors, self.emit, context=CollectorContext(self.data_dir)
+        )
+        responder = Responder(
+            self.data_dir / "commands.db",
+            state.device_id,
+            self.config.responses,
+            self.emit,
+            self.stop_event,
+        )
         self.emit(
             Category.AGENT,
             "agent_started",
@@ -114,7 +126,9 @@ class Agent:
             self.config.heartbeat_interval_seconds,
             stats=self.stats,
             uptime=lambda: round(time.monotonic() - self._started, 1),
-            on_commands=self._on_commands,
+            on_commands=responder.handle,
+            results=responder.pending_results,
+            acknowledge=responder.acknowledge,
         )
 
         threads = [
@@ -138,7 +152,7 @@ class Agent:
         finally:
             self.stop_event.set()
             for t in threads:
-                t.join(timeout=5)
+                t.join(timeout=15)
             self.emit(Category.AGENT, "agent_stopped", {"version": __version__})
             try:
                 uploader.flush_once()
@@ -148,6 +162,7 @@ class Agent:
                 )
             upload_client.close()
             heartbeat_client.close()
+            responder.close()
             self.buffer.close()
             log.info("Agent stopped")
 
@@ -183,6 +198,3 @@ class Agent:
                 )
                 self.stop_event.wait(backoff)
                 backoff = min(backoff * 2, MAX_COLLECTOR_BACKOFF_SECONDS)
-
-    def _on_commands(self, commands: list[dict[str, Any]]) -> None:
-        log.warning("Received %d command(s); response actions arrive in phase 5", len(commands))
