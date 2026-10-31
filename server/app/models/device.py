@@ -21,13 +21,14 @@ class Device(Document):
     last_ip: str | None = None
     stats: dict[str, Any] = Field(default_factory=dict)
 
-    # Forensic hash-chain cache; the events collection is the source of truth.
+    # Integrity anchor. Never rewind it to match deleted events.
     chain_length: int = 0
     chain_head: str = GENESIS_HASH
     # Highest agent sequence number received, and how many sequence numbers were skipped
     # (events the agent dropped or that never arrived).
     last_seq: int = 0
     missing_events: int = 0
+    detection_index: int = -1
 
     class Settings:
         name = "devices"
