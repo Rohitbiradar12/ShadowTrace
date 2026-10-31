@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Incident report · {{ report.alert.alert_id }} · ShadowTrace</title>
+<link rel="icon" href="/assets/mark.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/report.css"><script src="/assets/report.js" defer></script></head>
+<body><nav class="print-controls" aria-label="Report actions"><a href="/#/alerts/{{ report.alert.alert_id }}">← Back to alert</a>
+<button id="print-report" type="button">Print / Save as PDF</button>
+<a href="/api/v1/ui/reports/{{ report.alert.alert_id }}.json">Download JSON</a></nav>
+<main><header><p class="eyebrow">SHADOWTRACE / INCIDENT REPORT</p><h1>{{ report.alert.title }}</h1>
+<p>{{ report.alert.alert_id }} · {{ report.alert.severity|upper }} · {{ report.alert.status|replace('_', ' ') }}</p>
+<p>Generated {{ report.generated_at }} by {{ author }}. All timestamps include their UTC offset.</p></header>
+<section><h2>Incident summary</h2><dl>
+<dt>Endpoint</dt><dd>{{ report.device.hostname }} ({{ report.device.device_id }})</dd>
+<dt>Rule</dt><dd>{{ report.alert.rule_id }}</dd><dt>MITRE ATT&amp;CK</dt><dd>{{ report.alert.mitre|join(', ') or 'Not mapped' }}</dd>
+<dt>First / last event</dt><dd>{{ report.alert.first_event_at }} / {{ report.alert.last_event_at }}</dd>
+<dt>Occurrences</dt><dd>{{ report.alert.occurrence_count }}</dd>
+<dt>Missing agent sequence numbers</dt><dd>{{ report.device.missing_events }}</dd></dl></section>
+<section class="verification"><h2>Forensic verification: {{ 'PASS' if report.verification.ok else 'FAIL' }}</h2>
+<p>{{ report.verification.checked }} events checked against saved anchor length {{ report.anchor.length }}.</p>
+{% if not report.verification.ok %}<p class="failure">{{ report.verification.reason }}. Broken index: {{ report.verification.broken_at_index }}</p>{% endif %}
+<p>Saved chain head: <code>{{ report.anchor.head }}</code></p>
+<p>This verifies stored events against the server's saved anchor. It is not an external signature or proof of complete endpoint collection.</p></section>
+<section><h2>Triage history</h2>{% if report.alert.history %}<ol>{% for item in report.alert.history %}
+<li><strong>{{ item.actor }}</strong> · {{ item.at }}{% if item.status %} · {{ item.status|replace('_',' ') }}{% endif %}
+{% if item.note %}<p class="note">{{ item.note }}</p>{% endif %}</li>{% endfor %}</ol>{% else %}<p>No triage activity recorded.</p>{% endif %}</section>
+<section><h2>Response actions</h2><p>Includes commands linked to the alert/evidence or issued for this endpoint within the incident window; up to 100 commands.</p>
+{% for command in report.commands %}<article><h3>{{ command.action|replace('_',' ') }} · {{ command.status }}</h3>
+<p>{{ command.command_id }} · {{ command.actor }} · {{ command.created_at }}</p><p>Reason: {{ command.reason }}</p>
+{% if command.params %}<pre>{{ command.params|tojson(indent=2) }}</pre>{% endif %}
+{% if command.result %}<p>Endpoint result: {{ command.result.status }} — {{ command.result.detail }}</p>{% else %}<p>No endpoint result received.</p>{% endif %}
+<ul>{% for step in command.history %}<li>{{ step.at }} · {{ step.actor }} · {{ step.status }}</li>{% endfor %}</ul></article>
+{% else %}<p>No response commands recorded in this window.</p>{% endfor %}</section>
+<section><h2>Evidence events</h2><p>{{ report.evidence|length }} stored evidence events. Alert evidence previews retain up to 100 event IDs.</p>
+{% if report.missing_evidence %}<p class="failure">Missing evidence IDs: {{ report.missing_evidence|join(', ') }}</p>{% endif %}
+{% for event in report.evidence %}<article><h3>{{ event.category }} / {{ event.action }}</h3><p>{{ event.ts }} · {{ event.user or 'User not recorded' }}</p>
+<p>Event {{ event.event_id }} · sequence {{ event.seq }} · chain index {{ event.chain_index }}</p>
+<p>Hash: <code>{{ event.hash }}</code></p><pre>{{ event.data|tojson(indent=2) }}</pre></article>{% endfor %}</section>
+<section><h2>Endpoint timeline</h2><p>{{ report.window_start }} through {{ report.window_end }} (15 minutes around the incident).</p>
+<p>Showing {{ report.timeline|length }} of {{ report.timeline_total }} matching events; export limit {{ report.timeline_limit }}.</p>
+<table><thead><tr><th>Timestamp</th><th>Category / action</th><th>User</th><th>Event ID</th></tr></thead><tbody>
+{% for event in report.timeline %}<tr><td>{{ event.ts }}</td><td>{{ event.category }} / {{ event.action }}</td><td>{{ event.user or '—' }}</td><td>{{ event.event_id }}</td></tr>{% endfor %}
+</tbody></table></section>
+<section><h2>Notification delivery</h2><table><thead><tr><th>Channel</th><th>Status</th><th>Attempts</th><th>Sent at</th></tr></thead><tbody>
+{% for delivery in report.notifications %}<tr><td>{{ delivery.channel }}</td><td>{{ delivery.status }}</td><td>{{ delivery.attempts }}</td><td>{{ delivery.sent_at or '—' }}</td></tr>{% endfor %}</tbody></table></section>
+<footer>ShadowTrace incident record · Sensitive endpoint activity. Share only with authorized investigators.</footer></main></body></html>
