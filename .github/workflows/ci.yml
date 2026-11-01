@@ -27,7 +27,10 @@ jobs:
           }
 
   server:
-    runs-on: ubuntu-latest
+    # MongoDB 8.0 refuses to start on Linux kernel 6.19+ (SERVER-121912), which newer
+    # ubuntu-latest runners use. Ubuntu 22.04's kernel line stops at 6.8.
+    # Move back to ubuntu-latest once runners or MongoDB images include the fix.
+    runs-on: ubuntu-22.04
     services:
       mongo:
         image: mongo:8.0
