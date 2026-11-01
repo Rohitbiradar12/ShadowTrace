@@ -4,6 +4,10 @@ import { initPalette, openPalette } from './palette.js';
 import { h, enc, fmt, date, icon, heading, card, empty, facts, json, badge } from './ui.js';
 
 const main = document.querySelector('#main-content');
+const REFRESH_MS = 15000, AUTO_ROUTES = ['overview', 'alerts', 'devices', 'commands'], RING = 37.7;
+const statusNode = document.querySelector('#refresh-status'), statusText = document.querySelector('#refresh-text');
+const ringProgress = document.querySelector('#refresh-progress');
+let nextRefreshAt = Date.now() + REFRESH_MS, lastUpdated = null, refreshFailed = false, refreshing = false, pausedLeft = null;
 const dialog = document.querySelector('#action-dialog');
 const dialogForm = document.querySelector('#dialog-form');
 let revision = 0, modalSubmit = null, toastTimer, busy = false, refreshAfterClose = false;
@@ -113,10 +117,11 @@ async function render(background = false) {
     main.innerHTML = html;
     if(!background){main.classList.remove('enter');void main.offsetWidth;main.classList.add('enter');countUp();}
     updateCounts();
-    document.querySelector('#refresh-status').textContent = `Updated ${new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`;
+    lastUpdated = new Date(); refreshFailed = false; nextRefreshAt = Date.now() + REFRESH_MS;
+    setStatus();
   } catch(error) {
     if(ticket!==revision||!state.session)return;
-    if(background){document.querySelector('#refresh-status').textContent='Refresh unavailable';return;}
+    if(background){refreshFailed = true; nextRefreshAt = Date.now() + REFRESH_MS; return;}
     main.innerHTML = heading('Unable to load this page','Your saved data has not changed.')+card('Request failed',empty(error.message,'Use Refresh to try again.'));
   } finally { if(ticket===revision)main.setAttribute('aria-busy','false'); }
 }
@@ -264,10 +269,60 @@ document.addEventListener('keydown',event=>{if(event.key==='Escape')closeNav();}
 window.addEventListener('hashchange',()=>{closeNav();render();});
 window.addEventListener('session-expired',()=>signInView('Your session expired or was revoked. Sign in again.'));
 dialog.addEventListener('close',()=>{modalSubmit=null;document.querySelector('#dialog-body').replaceChildren();if(refreshAfterClose&&state.session){refreshAfterClose=false;render();}});
-setInterval(()=>{
-  const {route}=routeInfo(), active=document.activeElement;
-  if(state.session&&!document.hidden&&!busy&&!document.querySelector('dialog[open]')&&!active?.matches('input,textarea,select,button,a,summary')&&['overview','alerts','devices','commands'].includes(route))render(true);
-},15000);
+// ---- Auto-refresh with a visible countdown ----
+// Background refresh rebuilds the page, so it pauses while the user could lose work or focus.
+function refreshBlocked() {
+  if (busy || document.hidden || document.querySelector('dialog[open]')) return true;
+  const active = document.activeElement;
+  if (active && active !== main && main.contains(active) && (active.matches('input,textarea,select') || active.matches(':focus-visible'))) return true;
+  const selection = getSelection();
+  return Boolean(selection && !selection.isCollapsed && main.contains(selection.anchorNode));
+}
+function setStatus(mode = null, remaining = 0) {
+  if (!mode) {
+    const { route } = routeInfo();
+    mode = AUTO_ROUTES.includes(route) ? (refreshFailed ? 'error' : 'live') : 'static';
+    remaining = nextRefreshAt - Date.now();
+  }
+  const seconds = Math.max(1, Math.ceil(remaining / 1000));
+  const updated = lastUpdated ? lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+  const text = {
+    live: `Refreshing in ${seconds}s`, error: `Retrying in ${seconds}s`, loading: 'Refreshing…',
+    paused: 'Auto-refresh paused', static: updated ? `Updated ${updated}` : 'Connected',
+  }[mode];
+  const title = {
+    live: `Auto-refreshes every ${REFRESH_MS / 1000} seconds${updated ? ` · last updated ${updated}` : ''}`,
+    error: 'The last refresh failed; it will try again automatically',
+    loading: 'Loading the latest data',
+    paused: 'Paused while you type, select text, use a dialog or the tab is hidden',
+    static: 'This page updates when you open it or press Refresh',
+  }[mode];
+  statusNode.dataset.state = mode;
+  if (statusText.textContent !== text) statusText.textContent = text;
+  statusNode.title = title;
+  const fill = mode === 'loading' ? 0.3 : ['live', 'error', 'paused'].includes(mode) ? 1 - Math.min(1, remaining / REFRESH_MS) : 1;
+  ringProgress.setAttribute('stroke-dashoffset', (RING * (1 - fill)).toFixed(2));
+}
+async function backgroundRefresh() {
+  refreshing = true; setStatus('loading');
+  try { await render(true); }
+  finally {
+    refreshing = false;
+    if (nextRefreshAt <= Date.now()) nextRefreshAt = Date.now() + REFRESH_MS;  // render skipped (user started interacting)
+    setStatus();
+  }
+}
+setInterval(() => {
+  if (!state.session || refreshing) return;
+  if (!AUTO_ROUTES.includes(routeInfo().route)) { pausedLeft = null; setStatus('static'); return; }
+  if (refreshBlocked()) {
+    pausedLeft ??= Math.max(1000, nextRefreshAt - Date.now());
+    nextRefreshAt = Date.now() + pausedLeft;  // freeze the countdown while paused
+    setStatus('paused', pausedLeft); return;
+  }
+  pausedLeft = null;
+  if (nextRefreshAt - Date.now() <= 0) backgroundRefresh(); else setStatus();
+}, 1000);
 initPalette({toggleTheme,refresh:()=>render(),logout});
 try{state.session=await api('/auth/me');workspaceView();await render();}
 catch(error){signInView(error.status===401?'':error.message);}
