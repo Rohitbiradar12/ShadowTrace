@@ -507,7 +507,8 @@ def main() -> int:
             json.dumps(result, indent=2), encoding="utf-8"
         )
         print(
-            f"Browser smoke PASS: {seeded['events']} events, {seeded['alerts']} alerts; artifacts/browser"
+            f"Browser smoke PASS: {seeded['events']} events, "
+            f"{seeded['alerts']} alerts; artifacts/browser"
         )
         return 0
     finally:
