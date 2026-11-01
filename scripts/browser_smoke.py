@@ -251,6 +251,14 @@ def exercise_browser(base_url: str, password: str, seeded: dict) -> dict:
             page.screenshot(path=str(ARTIFACTS / "overview.png"), **SHOT)
             # All seeded alerts are untriaged, so the sidebar badge counts every one.
             expect(page.locator("#nav-alert-count")).to_have_text(str(seeded["alerts"]))
+            # Auto-refresh shows a countdown and still runs after mouse navigation
+            # (focus left on a sidebar link used to block it).
+            page.locator('[data-nav="overview"]').click()
+            expect(page.locator("#refresh-text")).to_have_text(
+                re.compile(r"Refreshing in \d+s")
+            )
+            with page.expect_request("**/api/v1/ui/overview", timeout=20000):
+                pass
             # Command palette: shortcut, live alert search and opening a result.
             page.keyboard.press("Control+K")
             palette = page.locator("#palette")
@@ -279,6 +287,20 @@ def exercise_browser(base_url: str, password: str, seeded: dict) -> dict:
                 ("account", "My account"),
             ]:
                 route(path, title)
+
+            # Expanding one rule card must not stretch the card beside it.
+            route("rules", "Detection rules")
+            cards = page.locator(".rule-card")
+            neighbour = cards.nth(1).bounding_box()["height"]
+            cards.nth(0).locator("summary").click()
+            expect(cards.nth(0).locator("pre")).to_be_visible()
+            assert cards.nth(1).bounding_box()["height"] == neighbour, "rule card stretched"
+            page.screenshot(path=str(ARTIFACTS / "rules.png"), animations="disabled")
+            # Pages without auto-refresh say so; typing in a filter pauses it elsewhere.
+            expect(page.locator("#refresh-status")).to_have_attribute("data-state", "static")
+            route("alerts", "Alert queue")
+            page.get_by_label("Search title or rule").click()
+            expect(page.locator("#refresh-text")).to_have_text("Auto-refresh paused")
 
             route(f"alerts/{seeded['alert_id']}", seeded["alert_title"])
             page.get_by_label("Status", exact=True).select_option("investigating")
